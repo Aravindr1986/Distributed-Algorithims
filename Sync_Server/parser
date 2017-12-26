@@ -1,0 +1,183 @@
+#!/usr/bin/perl -w
+
+# WRITTEN BY CHRISTOPHER KNOLL
+# WRITTEN FOR CS 4337 - PROGRAMMING LANGUAGES
+
+# Programmed in Perl with the Strawberry Perl interpreter (5.22.01 WIN-64)
+# To execute, type in console
+# "perl PATH_TO_PARSER PATH_TO_DATA"
+# Example: "perl parser test.txt"
+
+# Note that there are some newlines that aren't in the example output, for readability reasons
+
+use strict;
+
+my $charClass;
+my $lexeme;
+my $nextChar;
+my $lexLen;
+my $nextToken;
+
+use constant
+	{
+		LETTER => 0,
+		DIGIT => 1,
+		INT_LIT => 10,
+		IDENT => 11,
+		ASSIGN_OP => 20, 
+		ADD_OP => 21, 
+		SUB_OP => 22, 
+		MULT_OP => 23, 
+		DIV_OP => 24, 
+		LEFT_PAREN => 25, 
+		RIGHT_PAREN => 26,
+		SEMICOLON => 27,
+		EOF => 31,
+		UNKNOWN => 99, 
+		
+		ERROR_FILENAME 	=> "ERROR: Need to supply filename to parse!\n",
+		ERROR_FILEREAD 	=> "ERROR: Could not open input file!\n",
+		ERROR_SEMICOLON => "ERROR: Missing semicolon!\n",
+		ERROR_OVERFLOW  => "ERROR: Lexeme is too long!\n",
+		ERROR_NOOP 		=> "ERROR: Expected an operation, received two consecutive operands!\n",
+		ERROR_MISPAREN 	=> "ERROR: Expecting Right Parenthesis!\n",
+		ERROR_TOKEN 	=> "ERROR: Wrong token!\n",
+	};
+
+######################~  START MAIN  ~############################
+(scalar @ARGV == 1) or die ERROR_FILENAME; 
+print("\nSOURCE FILE: $ARGV[0]\n\n");
+open(FILE, $ARGV[0]) or die ERROR_FILEREAD;
+getChar();
+lex();
+print "ENTER <start>\n";
+while($nextToken != EOF)
+{
+	expr();
+	if ($nextToken == SEMICOLON) {lex();} else {die ERROR_SEMICOLON;}
+}
+print "EXIT <start>\n";
+if ($nextToken == EOF) {print ">> EOF\n\n";} else {die "ERROR: Expected EOF.\nInstead found next token is: $nextToken, Next lexeme is $lexeme.\n";}
+#######################~  END MAIN  ~#############################
+
+sub lookup
+{
+	my($char) = @_;
+	if($char eq ";")		{$nextToken = SEMICOLON;}
+	elsif($char eq "=")		{$nextToken = ASSIGN_OP;}
+	elsif($char eq "+")		{$nextToken = ADD_OP;}
+	elsif($char eq "-")		{$nextToken = SUB_OP;}
+	elsif($char eq "*")		{$nextToken = MULT_OP;}
+	elsif($char eq "/")		{$nextToken = DIV_OP;}
+	elsif($char eq "(")		{$nextToken = LEFT_PAREN;}
+	elsif($char eq ")")		{$nextToken = RIGHT_PAREN;}
+	else					{$nextToken = EOF;}
+}
+
+sub addChar
+{
+	($lexLen <= 98) or die ERROR_OVERFLOW;
+	$lexeme = $lexeme.$nextChar;
+	$lexLen++;
+}
+
+sub getNonWhite
+{
+	if (defined ($nextChar)) {while (defined ($nextChar) && $nextChar =~ /\s/) {getChar();}}
+}
+
+sub getChar
+{
+	if (defined ($nextChar = (getc FILE))) #checks that the next character isn't the EOF
+	{
+		if ($nextChar =~ /[A-Za-z]/) {$charClass = LETTER;}
+		elsif ($nextChar =~ /[0-9]/) {$charClass = DIGIT;}
+		else 						 {$charClass = UNKNOWN;}
+	}
+	else {$charClass = EOF};
+}
+
+sub lex
+{
+	$lexeme = "";
+	$lexLen = 0;
+	getNonWhite();
+	
+	if($charClass == LETTER)	{
+									addChar();
+									getChar();
+									while ($charClass == LETTER || $charClass == DIGIT) 
+									{
+									    addChar();
+									    getChar();
+									} 
+									$nextToken = IDENT;
+								}
+	
+	elsif($charClass == DIGIT)	{
+									addChar();
+									getChar();
+									while ($charClass == DIGIT) 
+									{
+									    addChar();
+									    getChar();
+									} 
+									$nextToken = INT_LIT;
+								}
+	
+	elsif($charClass == UNKNOWN){
+									lookup($nextChar);
+									addChar();
+									getChar();
+								}	
+	
+	else						{
+									$nextToken = EOF;
+									$lexeme = $lexeme."EOF";
+								}
+	
+	print "Next token is: $nextToken, Next lexeme is '$lexeme'.\n";
+	return $nextToken;
+}
+
+sub expr #run error checking on expr
+{
+	print "ENTER <expr>\n";
+	term();
+	while ($nextToken == ADD_OP || $nextToken == SUB_OP)
+	{
+		lex();
+		term();
+	}
+	print "EXIT <expr>\n";
+} 
+
+sub term #run error checking on term
+{
+	print "ENTER <term>\n";
+	factor();
+	while ($nextToken == MULT_OP || $nextToken == DIV_OP)
+	{
+		lex();
+		factor();
+	}
+	print "EXIT <term>\n";
+}
+
+sub factor
+{
+	print "ENTER <factor>\n";
+	if ($nextToken == IDENT || $nextToken == INT_LIT) {lex();}
+		else 
+		{
+			if ($nextToken == LEFT_PAREN) 
+			{
+				lex();
+				expr();
+				if ($nextToken == RIGHT_PAREN) {lex();}
+				else {die ERROR_MISPAREN;}
+			}
+			else {die ERROR_TOKEN;}
+    	}
+	print "EXIT <factor>\n";
+}

@@ -1,0 +1,4 @@
+(sum + 47) / total;
+A + A + B;
+A * (B + (C * A));
+A = B + C;
